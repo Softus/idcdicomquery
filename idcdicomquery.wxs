@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?define ProductBuild    = "1.0.0" ?>
+<?define ProductRevision = "0" ?>
+<?define ProductName     = "idcdicomquery" ?>
+<?define Manufacturer    = "softus.org" ?>
+<?define ProductVersion  = "$(var.ProductBuild).$(var.ProductRevision)" ?>
+<?define UpgradeCode     = "{43c6caae-3d50-11e8-b3d8-69214501bcdc}" ?>
+<?define SrcDir          = "$(var.Configuration)" ?>
+<?define RequiresAdmin   = "True" ?>
+
+<?if $(var.RequiresAdmin)=True ?>
+  <?define InstallPrivileges = "elevated" ?>
+  <?define InstallScope      = "perMachine" ?>
+  <?define DstDir            = "ProgramFilesFolder" ?>
+<?else ?>
+  <?define InstallPrivileges = "limited" ?>
+  <?define InstallScope      = "perUser" ?>
+  <?define DstDir            = "CommonAppDataFolder" ?>
+<?endif ?>
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+    Manufacturer="$(var.Manufacturer)"
+    Name="$(var.ProductName)"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="$(var.UpgradeCode)"
+    Language="1033"
+    >
+    <Package Id="*"
+      InstallPrivileges="$(var.InstallPrivileges)"
+      InstallerVersion="200"
+      Manufacturer="$(var.Manufacturer)"
+      Description="Utility program to query a DICOM server and retrieve studies from the server."
+      SummaryCodepage="1251"
+      Compressed="yes"
+      InstallScope="$(var.InstallScope)"
+    />
+
+    <!-- Major upgrade -->
+    <Upgrade Id="$(var.UpgradeCode)">
+      <UpgradeVersion Minimum="$(var.ProductVersion)" IncludeMinimum="no" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
+      <UpgradeVersion Minimum="0.0.0.0" IncludeMinimum="yes" Maximum="$(var.ProductVersion)" IncludeMaximum="no" IgnoreRemoveFailure="yes" Property="OLDERVERSIONBEINGUPGRADED"/>
+    </Upgrade>
+
+    <Property Id="ARPURLINFOABOUT">http://$(var.Manufacturer)/products/$(var.ProductName)</Property>
+    <Property Id="ARPURLUPDATEINFO">http://$(var.Manufacturer)/products/$(var.ProductName)</Property>
+    <Media Id="1" Cabinet="product.cab" EmbedCab="yes" CompressionLevel="high" />
+    <Icon Id="product.ico" SourceFile="ui/$(var.ProductName).ico" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramMenuFolder" Name="Programs"/>
+        <Directory Id="$(var.DstDir)" Name="PFiles">
+          <Directory Id="ManufacturerFolder" Name="$(var.Manufacturer)">
+            <Directory Id="INSTALLDIR" Name="$(var.ProductName)" FileSource="$(var.SrcDir)">
+              <Component Id="C_Application" Guid="*">
+                <File Id="File_Executable" Name="$(var.ProductName).exe" KeyPath="yes">
+                  <Shortcut Id="Shortcut_Executable" Directory="ProgramMenuFolder" Name="$(var.ProductName)" Advertise="yes" Icon="product.ico"/>
+                </File>
+              </Component>
+              <Directory Id="Translations" Name="translations" FileSource="$(var.SrcDir)">
+                <Component Id="C_Translations" Guid="cc643002-3e15-11e8-ad1a-94de80b39577">
+                  <File Id="File_Translation_RU" Name="$(var.ProductName)_ru.qm"  Source="$(var.ProductName)_ru.qm"/>
+                </Component>
+              </Directory>
+            </Directory>
+          </Directory>
+        </Directory>
+      </Directory>
+
+    <Feature Id="Complete" Title="Complete Feature" Level="1">
+      <ComponentRef Id="C_Application" />
+      <ComponentRef Id="C_Translations" />
+      <ComponentGroupRef Id="CG_QtRedist" />
+    </Feature>
+
+    <InstallExecuteSequence>
+      <AppSearch Before="LaunchConditions"/>
+      <RemoveExistingProducts After="InstallInitialize" />
+    </InstallExecuteSequence>
+
+  </Product>
+</Wix>

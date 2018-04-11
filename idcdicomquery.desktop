@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=IDC DICOM query
+Name[ru_RU]=ИДЦ DICOM query
+Comment=Utility program to query a DICOM server and retrieve studies from the server.
+Comment[ru_RU]=Программа для поиска и скачивания исследований с DICOM сервера.
+Exec=idcdicomquery %U
+Icon=/usr/share/icons/idcdicomquery.png
+StartupNotify=true
+Terminal=false
+Type=Application
+

@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/app">
+        <file>idcdicomquery.png</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,44 @@
+version: 1.0.{build}
+pull_requests:
+  do_not_increment_build_number: true
+skip_non_tags: true
+image: Visual Studio 2013
+
+environment:
+  QT_DIR: C:\Qt\5.8\mingw53_32
+  MINGW_DIR: C:\Qt\Tools\mingw530_32
+  PREFIX: C:\usr
+
+configuration:
+  - Release
+
+# Fix line endings on Windows
+init:
+- git config --global core.autocrlf true
+
+install:
+- mkdir %PREFIX%
+- mkdir %PREFIX%\bin && mkdir %PREFIX%\include && mkdir %PREFIX%\lib
+- set PATH=%MINGW_DIR%\bin;%QT_DIR%\bin;%PREFIX%\bin;c:\msys64\mingw32\bin;%WIX%\bin;%PATH%
+
+# DCMTK
+- git clone git://git.dcmtk.org/dcmtk.git -b DCMTK-3.6.3 && cd dcmtk
+- mkdir build && cd build
+- set PATH=%PATH:C:\Program Files\Git\usr\bin=%
+- cmake -Wno-dev .. -DCMAKE_INSTALL_PREFIX=%PREFIX% -DDCMTK_WITH_OPENSSL=OFF -DDCMTK_WITH_WRAP=OFF -DDCMTK_WITH_ICU=OFF -DDCMTK_WITH_ICONV=OFF -G "MinGW Makefiles"
+- cmake --build . --target install -- -j 4
+- set PATH=%PATH%;C:\Program Files\Git\usr\bin
+- cd ..\..
+
+build_script:
+- lrelease *.ts
+- qmake INCLUDEPATH+=%PREFIX%\include QMAKE_LIBDIR+=%PREFIX%\lib
+- mingw32-make -f Makefile.%CONFIGURATION%
+- windeployqt.exe --no-svg --no-angle --no-opengl-sw --no-system-d3d-compiler --no-translations --libdir qtredist --plugindir qtredist %CONFIGURATION%\idcdicomquery.exe
+- heat dir qtredist -cg CG_QtRedist -var var.QtRedistDir -ag -srd -sfrag -dr INSTALLDIR -out qtredist.wxs
+- candle -dConfiguration=%CONFIGURATION% -dQtRedistDir=qtredist idcdicomquery.wxs qtredist.wxs
+- light idcdicomquery.wixobj qtredist.wixobj -out idcdicomquery.msi
+
+artifacts:
+- path: idcdicomquery.msi
+  name: windows-installer

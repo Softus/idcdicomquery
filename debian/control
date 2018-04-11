@@ -1,0 +1,14 @@
+Source: idcdicomquery
+Section: contrib/misc
+Priority: optional
+Maintainer: Softus team <contact@softus.org>
+Standards-Version: 3.2.1
+Build-Depends: libdcmtk2-dev, debhelper, libwrap0-dev,
+  libqt5opengl5-dev, qt5-default, qttools5-dev-tools,
+  lsb-release, fakeroot
+
+Package: idcdicomquery
+Architecture: i386 amd64
+Pre-Depends: debconf (>= 1.1) | debconf-2.0
+Depends: ${shlibs:Depends}
+Description: Utility program to query a DICOM server and retrieve studies from the server.
