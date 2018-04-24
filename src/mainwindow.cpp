@@ -56,23 +56,36 @@ Q_DECLARE_METATYPE(DcmDataset)
 Q_DECLARE_METATYPE(DcmTag)
 
 #define DEFAULT_DICOM_PORT 11112
+#ifdef Q_OS_LINUX
+#define DEFAULT_VIEWER "nautilus"
+#define DEFAULT_VIEWER_ARGS QStringList()
+#else
+#define DEFAULT_VIEWER "explorer"
+#define DEFAULT_VIEWER_ARGS "/select,%1"
+#endif
+#define STATUS_TIMEOUT 5000
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    auto dateGroup = new QActionGroup(this);
+    QUtf8Settings settings;
 
+    auto dateGroup = new QActionGroup(this);
     ui->actionDay->setActionGroup(dateGroup);
     ui->actionWeek->setActionGroup(dateGroup);
+    if (settings.value("date-filter").toString() == "week")
+    {
+        ui->actionWeek->setChecked(true);
+    }
     connect(dateGroup, SIGNAL(triggered(QAction*)), this, SLOT(loadList()));
 
     qRegisterMetaType<DcmDataset>();
     qRegisterMetaType<DcmTag>();
 
-    QUtf8Settings settings;
     settings.beginGroup("Display");
+
     auto keys = settings.allKeys();
     ui->results->setColumnCount(keys.count());
 
@@ -149,7 +162,12 @@ void MainWindow::loadList()
     QString dateFilter("StudyDate=");
     if (ui->actionWeek->isChecked())
     {
+        statusBar()->showMessage(tr("Loading list (this week)"), STATUS_TIMEOUT);
         dateFilter.append(today.addDays(-7).toString("yyyyMMdd")).append("-");
+    }
+    else
+    {
+        statusBar()->showMessage(tr("Loading list (today)"), STATUS_TIMEOUT);
     }
     dateFilter.append(today.toString("yyyyMMdd"));
     overrideKeys.push_back(dateFilter.toLocal8Bit().constData());
@@ -158,13 +176,15 @@ void MainWindow::loadList()
     settings.beginGroup("Query");
     for (auto key : settings.allKeys())
     {
-        overrideKeys.push_back(key.append("=").append(settings.value(key).toString()).toLocal8Bit().constData());
+        overrideKeys.push_back(key.append("=")
+            .append(settings.value(key).toString()).toLocal8Bit().constData());
     }
     settings.endGroup();
 
     auto timeout = settings.value("timeout", 0).toInt();
     auto pduSize = settings.value("pdu-size", ASC_DEFAULTMAXPDU).toInt();
-    auto clientAPTitle = settings.value("client-aetitle", qApp->applicationName().toUpper()).toString();
+    auto clientAPTitle = settings.value("client-aetitle",
+        qApp->applicationName().toUpper()).toString();
     auto serverAPTitle = settings.value("server-aetitle").toString();
     auto serverAddress = settings.value("server-address").toString();
     auto serverPort    = settings.value("server-port", DEFAULT_DICOM_PORT).toUInt();
@@ -196,11 +216,13 @@ void MainWindow::loadList()
     {
         QMessageBox::critical(this, windowTitle(), cond.text());
     }
+    statusBar()->showMessage(tr("Done"), STATUS_TIMEOUT);
 }
 
 void MainWindow::hideEvent(QHideEvent *evt)
 {
     QUtf8Settings settings;
+    settings.setValue("date-filter", ui->actionDay->isChecked() ? "day" : "week");
     settings.setValue("mainwindow-geometry", saveGeometry());
 
     // Do not save window state, if it is in fullscreen mode or minimized
@@ -240,7 +262,19 @@ void MainWindow::onRowFetched(DcmDataset *ds)
 
 class GetDcmSCU : public DcmSCU
 {
+    MainWindow* parent;
+public:
+    GetDcmSCU(MainWindow* parent)
+        : parent(parent)
+    {
+    }
+
 protected:
+    virtual void notifyRECEIVEProgress(const unsigned long byteCount)
+    {
+        parent->statusBar()->showMessage(parent->tr("%1 bytes received").arg(byteCount));
+    }
+
     virtual void notifyInstanceStored
         ( const OFString &filename
         , const OFString &sopClassUID
@@ -250,9 +284,40 @@ protected:
         Q_UNUSED(sopInstanceUID);
 
         QUtf8Settings settings;
-        auto viewer = settings.value("viewer", "nautilus").toString();
-        auto args   = settings.value("viewer-args").toStringList();
-        QProcess::execute(viewer, args << QString::fromLocal8Bit(filename.c_str()));
+        auto viewer       = settings.value("viewer", DEFAULT_VIEWER).toString();
+        auto args         = settings.value("viewer-args", DEFAULT_VIEWER_ARGS).toStringList();
+        auto tmpFile      = QString::fromLocal8Bit(filename.c_str());
+        bool appendToList = true;
+
+        auto strFile = tmpFile + ".dcm";
+        if (!QFile::rename(tmpFile, strFile))
+        {
+            strFile = tmpFile;
+        }
+
+        for (QString& arg : args)
+        {
+            if (arg.contains("%1"))
+            {
+                arg.replace("%1", strFile);
+                appendToList = false;
+            }
+        }
+
+        if (appendToList)
+        {
+            args << strFile;
+        }
+
+        QProcess viewerProcess;
+        qDebug() << "starting" << viewer << args;
+        if (viewerProcess.execute(viewer, args) < 0)
+        {
+            QMessageBox::critical(parent, parent->windowTitle(), parent->tr(
+                "Failed to execute %1\n\n%2").arg(viewer).arg(viewerProcess.errorString()));
+        }
+        parent->statusBar()->showMessage(parent->tr("%1 download complete").arg(strFile),
+            STATUS_TIMEOUT);
     }
 };
 
@@ -269,7 +334,8 @@ void MainWindow::onItemDoubleClicked
     QUtf8Settings settings;
     auto timeout       = settings.value("timeout", 0).toInt();
     auto pduSize       = settings.value("pdu-size", ASC_DEFAULTMAXPDU).toInt();
-    auto clientAPTitle = settings.value("client-aetitle", qApp->applicationName().toUpper()).toString();
+    auto clientAPTitle = settings.value("client-aetitle",
+        qApp->applicationName().toUpper()).toString();
     auto serverAPTitle = settings.value("server-aetitle").toString();
     auto serverAddress = settings.value("server-address").toString();
     auto serverPort    = settings.value("server-port", DEFAULT_DICOM_PORT).toUInt();
@@ -279,7 +345,9 @@ void MainWindow::onItemDoubleClicked
         folder = QDir::tempPath();
     }
 
-    GetDcmSCU scu;
+    statusBar()->showMessage(tr("Downloading %1 to %2").arg(item->text(0)).arg(folder));
+
+    GetDcmSCU scu(this);
     scu.setMaxReceivePDULength(pduSize);
     scu.setACSETimeout(timeout);
     scu.setDIMSEBlockingMode(timeout == 0? DIMSE_BLOCKING: DIMSE_NONBLOCKING);
@@ -311,36 +379,38 @@ void MainWindow::onItemDoubleClicked
     scu.setStorageMode(DCMSCU_STORAGE_BIT_PRESERVING);
     scu.setStorageDir(folder.toLocal8Bit().constData());
 
+    T_ASC_PresentationContextID pcid = 0;
     auto cond = scu.initNetwork();
     if (cond.good())
     {
         cond = scu.negotiateAssociation();
     }
+    if (cond.good())
+    {
+        pcid = scu.findPresentationContextID(UID_GETStudyRootQueryRetrieveInformationModel, "");
+        if (pcid == 0)
+        {
+            cond = makeOFCondition(0, 1, OF_error,
+                tr("Accepted presentation context ID not found").toUtf8());
+        }
+    }
+    if (cond.good())
+    {
+        OFList<RetrieveResponse*> responses;
+        cond = scu.sendCGETRequest(pcid, &ds, &responses);
+        for (auto iter = responses.begin(); iter != responses.end(); iter = responses.erase(iter))
+        {
+            (*iter)->print();
+            delete (*iter);
+        }
+    }
+
     if (cond.bad())
     {
         QMessageBox::critical(this, windowTitle(), cond.text());
-        return;
     }
 
-    auto pcid = scu.findPresentationContextID(UID_GETStudyRootQueryRetrieveInformationModel, "");
-    if (pcid == 0)
-    {
-        QMessageBox::critical(this, windowTitle(), tr("Presentation context not found"));
-        return;
-    }
-
-    OFList<RetrieveResponse*> responses;
-    cond = scu.sendCGETRequest(pcid, &ds, &responses);
-    for (auto iter = responses.begin(); iter != responses.end(); iter = responses.erase(iter))
-    {
-        (*iter)->print();
-        delete (*iter);
-    }
-
-    if (cond.bad())
-    {
-        QMessageBox::critical(this, windowTitle(), cond.text());
-    }
+    statusBar()->clearMessage();
 }
 
 void MainWindow::showAbout()
