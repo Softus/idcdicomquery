@@ -283,30 +283,35 @@ protected:
         Q_UNUSED(sopClassUID);
         Q_UNUSED(sopInstanceUID);
 
-        QUtf8Settings settings;
+        QFile             file(QString::fromLocal8Bit(filename.c_str()));
+        QUtf8Settings     settings;
         auto viewer       = settings.value("viewer", DEFAULT_VIEWER).toString();
         auto args         = settings.value("viewer-args", DEFAULT_VIEWER_ARGS).toStringList();
-        auto tmpFile      = QString::fromLocal8Bit(filename.c_str());
         bool appendToList = true;
 
-        auto strFile = tmpFile + ".dcm";
-        if (!QFile::rename(tmpFile, strFile))
+        if (!file.rename(file.fileName() + ".dcm"))
         {
-            strFile = tmpFile;
+            qDebug() << "Failed to rename" << file.fileName();
         }
+
+#ifdef Q_OS_WIN
+        auto fileName = file.fileName().replace('/', QDir::separator());
+#else
+        auto fileName = file.fileName();
+#endif
 
         for (QString& arg : args)
         {
             if (arg.contains("%1"))
             {
-                arg.replace("%1", strFile);
+                arg.replace("%1", fileName);
                 appendToList = false;
             }
         }
 
         if (appendToList)
         {
-            args << strFile;
+            args << fileName;
         }
 
         QProcess viewerProcess;
@@ -316,7 +321,8 @@ protected:
             QMessageBox::critical(parent, parent->windowTitle(), parent->tr(
                 "Failed to execute %1\n\n%2").arg(viewer).arg(viewerProcess.errorString()));
         }
-        parent->statusBar()->showMessage(parent->tr("%1 download complete").arg(strFile),
+
+        parent->statusBar()->showMessage(parent->tr("%1 download complete").arg(fileName),
             STATUS_TIMEOUT);
     }
 };
