@@ -33,6 +33,8 @@
 
 #define HAVE_CONFIG_H
 #include <dcmtk/config/osconfig.h>   /* make sure OS specific configuration is included first */
+#include <dcmtk/oflog/configrt.h>
+#include <dcmtk/oflog/fileap.h>
 #include <dcmtk/oflog/logger.h>
 namespace dcmtk{}
 using namespace dcmtk;
@@ -73,13 +75,29 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
 
+    QCommandLineOption logConfigOption("log-config",
+        tr("The config file to initialize the logger."), tr("FILE"));
+    QCommandLineOption logFileOption("log-file",
+        tr("The file to write the log output."), tr("FILE"));
     QCommandLineOption logLevelOption("log-level",
-        tr("Log output level (off, fatal, error, warn, info, debug, trace)."), tr("level"));
-    parser.addOption(logLevelOption);
+        tr("The log output level (off, fatal, error, warn, info, debug, trace)."), tr("LEVEL"));
+    parser.addOptions({logConfigOption, logFileOption, logLevelOption});
 
     // Process the actual command line arguments given by the user.
     parser.process(app);
 
+    if (parser.isSet(logConfigOption))
+    {
+        auto configFile = parser.value(logConfigOption).toLocal8Bit().constData();
+        log4cplus::PropertyConfigurator(configFile).configure();
+    }
+    if (parser.isSet(logFileOption))
+    {
+        auto logFile = parser.value(logFileOption).toLocal8Bit().constData();
+        log4cplus::SharedAppenderPtr file(new log4cplus::FileAppender(logFile));
+        log4cplus::Logger::getRoot().removeAllAppenders();
+        log4cplus::Logger::getRoot().addAppender(file);
+    }
     if (parser.isSet(logLevelOption))
     {
         auto levelName = parser.value(logLevelOption).toLocal8Bit().constData();
