@@ -1,5 +1,11 @@
+idcdicomquery (1.0.1) debian;
+  * Report loading progress
+  * More log options for DCMTK
+
+ -- Pavel Bludov <pbludov@gmail.com>  Tue, 24 Apr 2018 14:50:10 +0800
+
 idcdicomquery (1.0.0) debian;
 
   * Initial version
 
- -- Pavel Bludov <pbludov@gmail.com>  Mon, 09 Apr 2018 11:24:50 +0900
+ -- Pavel Bludov <pbludov@gmail.com>  Mon, 09 Apr 2018 11:24:50 +0800
