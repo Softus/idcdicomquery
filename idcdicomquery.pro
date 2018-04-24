@@ -17,7 +17,7 @@ lessThan(QT_MAJOR_VERSION, 5): error (QT 5.0 or newer is required)
 isEmpty(PREFIX): PREFIX = /usr
 TARGET   = idcdicomquery
 TEMPLATE = app
-VERSION  = 1.0.0
+VERSION  = 1.0.1
 
 DEFINES += PREFIX=$$PREFIX \
     PRODUCT_NAME=\\\"$$TARGET\\\" \

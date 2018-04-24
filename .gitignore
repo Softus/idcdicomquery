@@ -37,3 +37,10 @@ Makefile*
 # QtCtreator CMake
 CMakeLists.txt.user*
 
+debian/changelog
+debian/copyright
+debian/idcdicomquery.1
+debian/license.rtf
+debian/log.cfg
+
+*.qm
